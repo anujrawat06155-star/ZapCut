@@ -44,7 +44,7 @@ class _HomeScreenState extends State<HomeScreen> {
   ];
 
   _RatioOption _selectedRatio = _allRatios.first;
-  bool _fitMode = true; // true = Fit frame, false = Original video ratio
+  bool _fitMode = true;
 
   Future<void> _pickVideo() async {
     final XFile? picked = await _picker.pickVideo(source: ImageSource.gallery);
@@ -362,3 +362,4 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+}
