@@ -96,7 +96,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _recordMarked = false;
 
   int _selectedFilterIndex = 0;
-  double _brightnessOffset = 0.0; // -40 to +40
+  double _brightnessOffset = 0.0;
 
   String _mainTab = 'Audio';
   String _subTool = 'Effect';
@@ -408,7 +408,6 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    // Audio -> Effect / Mute
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -677,7 +676,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                           vertical: 5,
                                         ),
                                         decoration: BoxDecoration(
-                                          color: Colors.black65,
+                                          color: Colors.black.withValues(alpha: 0.65),
                                           borderRadius: BorderRadius.circular(8),
                                         ),
                                         child: Text(
@@ -746,7 +745,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             const SizedBox(height: 8),
-            // Sub-tools row when a main tab is tapped
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
@@ -779,7 +777,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             const SizedBox(height: 8),
-            // Main Bottom Tabs: Audio, Sticker, Text, Effect
             Container(
               padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 6),
               decoration: BoxDecoration(
