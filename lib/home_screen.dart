@@ -25,6 +25,20 @@ class _FilterPreset {
   const _FilterPreset({required this.name, this.matrix});
 }
 
+class _StickerItem {
+  final String id;
+  final String label;
+  final IconData icon;
+  final Color color;
+
+  const _StickerItem({
+    required this.id,
+    required this.label,
+    required this.icon,
+    required this.color,
+  });
+}
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -85,27 +99,71 @@ class _HomeScreenState extends State<HomeScreen> {
     ),
   ];
 
+  static const List<String> _musicTracks = [
+    'Lo-Fi Reel Beat',
+    'Desi Energetic',
+    'Emotional Kahani',
+    'Upbeat Vlog Vibe',
+    'Chill Groove',
+    'Phonk Hook Drop',
+    'Acoustic Morning',
+    'Suspense Rise',
+  ];
+
+  static const List<Color> _textColors = [
+    Colors.white,
+    Colors.amber,
+    Colors.redAccent,
+    Colors.greenAccent,
+    Colors.cyanAccent,
+    Colors.pinkAccent,
+    Colors.orangeAccent,
+    Colors.black,
+  ];
+
+  static const List<_StickerItem> _stickersList = [
+    _StickerItem(id: 'fire', label: 'Fire', icon: Icons.local_fire_department, color: Colors.deepOrange),
+    _StickerItem(id: 'crown', label: 'Crown', icon: Icons.workspace_premium, color: Colors.amber),
+    _StickerItem(id: 'share', label: 'Share', icon: Icons.share, color: Colors.greenAccent),
+    _StickerItem(id: 'rec', label: 'REC', icon: Icons.fiber_manual_record, color: Colors.redAccent),
+    _StickerItem(id: 'eyes', label: 'Eyes', icon: Icons.visibility, color: Colors.lightBlueAccent),
+    _StickerItem(id: 'love', label: 'Love', icon: Icons.favorite, color: Colors.pinkAccent),
+    _StickerItem(id: 'cam', label: 'Cam', icon: Icons.photo_camera, color: Colors.purpleAccent),
+    _StickerItem(id: 'time', label: 'Time', icon: Icons.schedule, color: Colors.cyanAccent),
+    _StickerItem(id: 'star', label: 'Star', icon: Icons.star, color: Colors.yellowAccent),
+    _StickerItem(id: 'bolt', label: 'Bolt', icon: Icons.bolt, color: Colors.orangeAccent),
+    _StickerItem(id: 'mic', label: 'Mic', icon: Icons.mic, color: Colors.tealAccent),
+    _StickerItem(id: 'zap', label: 'ZapCut', icon: Icons.verified, color: Colors.greenAccent),
+  ];
+
   _RatioOption _selectedRatio = _allRatios.first;
   bool _fitMode = true;
   bool _showSafeZone = true;
   bool _isMuted = false;
   bool _isSaving = false;
-  bool _showOverlayText = true;
-  bool _showStickerBadge = false;
-  bool _showDoodleBadge = false;
   bool _recordMarked = false;
+
+  // Text customization states
+  bool _showOverlayText = true;
+  Color _selectedTextColor = Colors.white;
+  bool _textHasBackground = true;
+  double _textFontSize = 18.0;
+  Offset _textOffset = Offset.zero;
 
   int _selectedFilterIndex = 0;
   double _brightnessOffset = 0.0;
 
-  String _mainTab = 'Audio';
-  String _subTool = 'Effect';
+  String? _selectedMusic;
+  final Set<String> _addedStickers = {};
+
+  String _mainTab = 'Text';
+  String _subTool = 'Text';
 
   static const Map<String, List<String>> _tabSubTools = {
-    'Audio': ['Effect', 'Record', 'AI Speech'],
-    'Sticker': ['Text', 'Caption', 'AI Speech', 'Detail', 'Doodle'],
-    'Text': ['Sticker', 'Text', 'Caption', 'AI Speech', 'Detail', 'Doodle'],
-    'Effect': ['AI Effect', 'Filter', 'Adjust'],
+    'Audio': ['Music', 'Effect', 'Record', 'AI Speech'],
+    'Sticker': ['Stickers', 'Text', 'Caption', 'AI Speech', 'Detail', 'Doodle'],
+    'Text': ['Text', 'Caption', 'Stickers', 'AI Speech', 'Detail', 'Doodle'],
+    'Effect': ['Filter', 'Adjust', 'AI Effect'],
   };
 
   Future<void> _pickVideo() async {
@@ -158,10 +216,20 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _selectMainTab(String tab) {
-    final subs = _tabSubTools[tab] ?? ['Effect'];
+    final subs = _tabSubTools[tab] ?? ['Text'];
     setState(() {
       _mainTab = tab;
       _subTool = subs.first;
+    });
+  }
+
+  void _toggleSticker(String id) {
+    setState(() {
+      if (_addedStickers.contains(id)) {
+        _addedStickers.remove(id);
+      } else {
+        _addedStickers.add(id);
+      }
     });
   }
 
@@ -241,6 +309,221 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildSubToolControls() {
+    if (_subTool == 'Text' || _subTool == 'Caption') {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _textInputController,
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    hintText: _subTool == 'Caption'
+                        ? 'Reel caption likhein...'
+                        : 'Video par likhne ke liye text type karein...',
+                    hintStyle: const TextStyle(color: Colors.white38),
+                    filled: true,
+                    fillColor: const Color(0xFF0E1015),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                  onChanged: (_) => setState(() => _showOverlayText = true),
+                ),
+              ),
+              const SizedBox(width: 6),
+              IconButton(
+                tooltip: 'Show/Hide Text',
+                onPressed: () => setState(() => _showOverlayText = !_showOverlayText),
+                icon: Icon(
+                  _showOverlayText ? Icons.visibility : Icons.visibility_off,
+                  color: Colors.amber,
+                  size: 20,
+                ),
+              ),
+              IconButton(
+                tooltip: 'Background Box',
+                onPressed: () => setState(() => _textHasBackground = !_textHasBackground),
+                icon: Icon(
+                  _textHasBackground ? Icons.format_color_fill : Icons.text_format,
+                  color: _textHasBackground ? Colors.greenAccent : Colors.white70,
+                  size: 20,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 28,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _textColors.length,
+                    itemBuilder: (context, idx) {
+                      final col = _textColors[idx];
+                      final isSelected = _selectedTextColor == col;
+                      return GestureDetector(
+                        onTap: () => setState(() {
+                          _selectedTextColor = col;
+                          _showOverlayText = true;
+                        }),
+                        child: Container(
+                          width: 26,
+                          height: 26,
+                          margin: const EdgeInsets.only(right: 8),
+                          decoration: BoxDecoration(
+                            color: col,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: isSelected ? Colors.amber : Colors.white54,
+                              width: isSelected ? 2.5 : 1,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              const Text('Size', style: TextStyle(color: Colors.white60, fontSize: 11)),
+              SizedBox(
+                width: 95,
+                child: Slider(
+                  value: _textFontSize,
+                  min: 12,
+                  max: 30,
+                  activeColor: Colors.amber,
+                  inactiveColor: Colors.white24,
+                  onChanged: (v) => setState(() => _textFontSize = v),
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+
+    if (_subTool == 'Music') {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                _selectedMusic == null
+                    ? 'Gaana / Music chunein:'
+                    : 'Selected: $_selectedMusic',
+                style: const TextStyle(color: Colors.amber, fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+              if (_selectedMusic != null)
+                TextButton(
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: const Size(50, 24),
+                  ),
+                  onPressed: () => setState(() => _selectedMusic = null),
+                  child: const Text('Remove', style: TextStyle(color: Colors.white60, fontSize: 11)),
+                ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: _musicTracks.map((track) {
+                final isSelected = _selectedMusic == track;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ChoiceChip(
+                    avatar: const Icon(Icons.music_note, size: 15),
+                    label: Text(track),
+                    selected: isSelected,
+                    onSelected: (_) {
+                      setState(() => _selectedMusic = track);
+                    },
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (_subTool == 'Stickers') {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Stickers (${_addedStickers.length} lagaye gaye) — tap karke add/hatayein:',
+                style: const TextStyle(color: Colors.amber, fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+              if (_addedStickers.isNotEmpty)
+                TextButton(
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: const Size(50, 24),
+                  ),
+                  onPressed: () => setState(() => _addedStickers.clear()),
+                  child: const Text('Clear', style: TextStyle(color: Colors.white60, fontSize: 11)),
+                ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          SizedBox(
+            height: 62,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: _stickersList.length,
+              itemBuilder: (context, index) {
+                final st = _stickersList[index];
+                final active = _addedStickers.contains(st.id);
+                return GestureDetector(
+                  onTap: () => _toggleSticker(st.id),
+                  child: Container(
+                    width: 64,
+                    margin: const EdgeInsets.only(right: 8),
+                    padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                    decoration: BoxDecoration(
+                      color: active ? Colors.amber.withValues(alpha: 0.22) : const Color(0xFF0E1015),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: active ? Colors.amber : Colors.white12,
+                        width: active ? 1.5 : 1,
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(st.icon, color: st.color, size: 22),
+                        const SizedBox(height: 2),
+                        Text(
+                          st.label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: Colors.white, fontSize: 10),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      );
+    }
+
     if (_subTool == 'Filter') {
       return SingleChildScrollView(
         scrollDirection: Axis.horizontal,
@@ -286,58 +569,6 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    if (_subTool == 'Text' || _subTool == 'Caption') {
-      return Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _textInputController,
-              style: const TextStyle(color: Colors.white, fontSize: 13),
-              decoration: InputDecoration(
-                isDense: true,
-                hintText: _subTool == 'Caption'
-                    ? 'Reel caption likhein...'
-                    : 'Text overlay likhein...',
-                hintStyle: const TextStyle(color: Colors.white38),
-                filled: true,
-                fillColor: const Color(0xFF0E1015),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-              onChanged: (_) => setState(() => _showOverlayText = true),
-            ),
-          ),
-          const SizedBox(width: 8),
-          IconButton(
-            onPressed: () => setState(() => _showOverlayText = !_showOverlayText),
-            icon: Icon(
-              _showOverlayText ? Icons.visibility : Icons.visibility_off,
-              color: Colors.amber,
-            ),
-          ),
-        ],
-      );
-    }
-
-    if (_subTool == 'Sticker') {
-      return Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          const Text(
-            'Creator Sticker Tag',
-            style: TextStyle(color: Colors.white70, fontSize: 12),
-          ),
-          Switch(
-            value: _showStickerBadge,
-            activeColor: Colors.amber,
-            onChanged: (v) => setState(() => _showStickerBadge = v),
-          ),
-        ],
-      );
-    }
-
     if (_subTool == 'Detail') {
       return Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -362,13 +593,13 @@ class _HomeScreenState extends State<HomeScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           const Text(
-            'Highlight / Doodle Marker',
+            'Highlight / Doodle Sticker',
             style: TextStyle(color: Colors.white70, fontSize: 12),
           ),
           Switch(
-            value: _showDoodleBadge,
+            value: _addedStickers.contains('bolt'),
             activeColor: Colors.amber,
-            onChanged: (v) => setState(() => _showDoodleBadge = v),
+            onChanged: (_) => _toggleSticker('bolt'),
           ),
         ],
       );
@@ -400,7 +631,7 @@ class _HomeScreenState extends State<HomeScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
-            '$_subTool — Agle phase mein clean add hoga (no AI bloat now)',
+            '$_subTool — Agle phase mein clean add hoga',
             style: const TextStyle(color: Colors.white60, fontSize: 12),
           ),
           const Icon(Icons.bolt, color: Colors.amber, size: 18),
@@ -439,13 +670,16 @@ class _HomeScreenState extends State<HomeScreen> {
         ? _selectedRatio.ratio
         : (hasVideo ? _controller!.value.aspectRatio : _selectedRatio.ratio);
 
-    final subTools = _tabSubTools[_mainTab] ?? const ['Effect'];
+    final subTools = _tabSubTools[_mainTab] ?? const ['Text'];
     final mainTabs = [
       ('Audio', Icons.music_note),
       ('Sticker', Icons.emoji_emotions_outlined),
       ('Text', Icons.text_fields),
       ('Effect', Icons.auto_awesome),
     ];
+
+    final activeStickerItems =
+        _stickersList.where((s) => _addedStickers.contains(s.id)).toList();
 
     return Scaffold(
       backgroundColor: const Color(0xFF0E1015),
@@ -608,7 +842,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: Text(
-                                        '${_fitMode ? 'Fit ${_selectedRatio.shortTag}' : 'Original'} • ${_filters[_selectedFilterIndex].name}',
+                                        _selectedMusic == null
+                                            ? '${_fitMode ? 'Fit ${_selectedRatio.shortTag}' : 'Original'} • ${_filters[_selectedFilterIndex].name}'
+                                            : '♪ $_selectedMusic',
                                         style: const TextStyle(
                                           color: Colors.white,
                                           fontSize: 11,
@@ -616,75 +852,87 @@ class _HomeScreenState extends State<HomeScreen> {
                                       ),
                                     ),
                                   ),
-                                  if (_showStickerBadge || _showDoodleBadge)
+                                  if (activeStickerItems.isNotEmpty)
                                     Positioned(
                                       top: 8,
                                       right: 8,
-                                      child: Row(
-                                        children: [
-                                          if (_showStickerBadge)
-                                            Container(
-                                              margin: const EdgeInsets.only(left: 4),
-                                              padding: const EdgeInsets.symmetric(
-                                                horizontal: 7,
-                                                vertical: 3,
-                                              ),
-                                              decoration: BoxDecoration(
-                                                color: Colors.amber,
-                                                borderRadius: BorderRadius.circular(8),
-                                              ),
-                                              child: const Text(
-                                                'ZAP',
-                                                style: TextStyle(
-                                                  color: Colors.black,
-                                                  fontSize: 10,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
+                                      child: Wrap(
+                                        spacing: 4,
+                                        runSpacing: 4,
+                                        children: activeStickerItems.map((st) {
+                                          return Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 6,
+                                              vertical: 3,
                                             ),
-                                          if (_showDoodleBadge)
-                                            Container(
-                                              margin: const EdgeInsets.only(left: 4),
-                                              padding: const EdgeInsets.symmetric(
-                                                horizontal: 7,
-                                                vertical: 3,
-                                              ),
-                                              decoration: BoxDecoration(
-                                                color: Colors.greenAccent,
-                                                borderRadius: BorderRadius.circular(8),
-                                              ),
-                                              child: const Text(
-                                                'MARK',
-                                                style: TextStyle(
-                                                  color: Colors.black,
-                                                  fontSize: 10,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
+                                            decoration: BoxDecoration(
+                                              color: Colors.black.withValues(alpha: 0.72),
+                                              borderRadius: BorderRadius.circular(8),
+                                              border: Border.all(color: st.color, width: 1),
                                             ),
-                                        ],
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(st.icon, color: st.color, size: 14),
+                                                const SizedBox(width: 2),
+                                                Text(
+                                                  st.label,
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        }).toList(),
                                       ),
                                     ),
                                   if (_showOverlayText &&
                                       _textInputController.text.trim().isNotEmpty)
                                     Align(
                                       alignment: Alignment.bottomCenter,
-                                      child: Container(
-                                        margin: const EdgeInsets.only(bottom: 58),
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 5,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.black.withValues(alpha: 0.65),
-                                          borderRadius: BorderRadius.circular(8),
-                                        ),
-                                        child: Text(
-                                          _textInputController.text.trim(),
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 14,
+                                      child: Transform.translate(
+                                        offset: _textOffset,
+                                        child: GestureDetector(
+                                          onPanUpdate: (details) {
+                                            setState(() {
+                                              _textOffset += details.delta;
+                                            });
+                                          },
+                                          child: Container(
+                                            margin: const EdgeInsets.only(bottom: 58),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 12,
+                                              vertical: 5,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: _textHasBackground
+                                                  ? (_selectedTextColor == Colors.black
+                                                      ? Colors.white.withValues(alpha: 0.85)
+                                                      : Colors.black.withValues(alpha: 0.65))
+                                                  : Colors.transparent,
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: Text(
+                                              _textInputController.text.trim(),
+                                              textAlign: TextAlign.center,
+                                              style: TextStyle(
+                                                color: _selectedTextColor,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: _textFontSize,
+                                                shadows: _textHasBackground
+                                                    ? null
+                                                    : const [
+                                                        Shadow(
+                                                          color: Colors.black,
+                                                          blurRadius: 6,
+                                                          offset: Offset(1, 1),
+                                                        ),
+                                                      ],
+                                              ),
+                                            ),
                                           ),
                                         ),
                                       ),
