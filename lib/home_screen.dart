@@ -34,6 +34,9 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final ImagePicker _picker = ImagePicker();
+  final TextEditingController _textInputController =
+      TextEditingController(text: 'ZapCut Reel');
+
   File? _selectedVideo;
   VideoPlayerController? _controller;
 
@@ -87,12 +90,23 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _showSafeZone = true;
   bool _isMuted = false;
   bool _isSaving = false;
-  double _playbackSpeed = 1.0;
-  int _selectedFilterIndex = 0;
-  String _activeTool = 'Trim';
+  bool _showOverlayText = true;
+  bool _showStickerBadge = false;
+  bool _showDoodleBadge = false;
+  bool _recordMarked = false;
 
-  double _trimStartMs = 0;
-  double _trimEndMs = 0;
+  int _selectedFilterIndex = 0;
+  double _brightnessOffset = 0.0; // -40 to +40
+
+  String _mainTab = 'Audio';
+  String _subTool = 'Effect';
+
+  static const Map<String, List<String>> _tabSubTools = {
+    'Audio': ['Effect', 'Record', 'AI Speech'],
+    'Sticker': ['Text', 'Caption', 'AI Speech', 'Detail', 'Doodle'],
+    'Text': ['Sticker', 'Text', 'Caption', 'AI Speech', 'Detail', 'Doodle'],
+    'Effect': ['AI Effect', 'Filter', 'Adjust'],
+  };
 
   Future<void> _pickVideo() async {
     final XFile? picked = await _picker.pickVideo(source: ImageSource.gallery);
@@ -103,26 +117,16 @@ class _HomeScreenState extends State<HomeScreen> {
     await controller.initialize();
     controller.setLooping(true);
     await controller.setVolume(_isMuted ? 0.0 : 1.0);
-    await controller.setPlaybackSpeed(_playbackSpeed);
     await controller.play();
 
-    final totalMs = controller.value.duration.inMilliseconds.toDouble();
-
     controller.addListener(() {
-      if (!mounted || !_controller!.value.isInitialized) return;
-      final currentMs = _controller!.value.position.inMilliseconds.toDouble();
-      if (_trimEndMs > _trimStartMs && currentMs >= _trimEndMs) {
-        _controller!.seekTo(Duration(milliseconds: _trimStartMs.round()));
-      }
-      setState(() {});
+      if (mounted) setState(() {});
     });
 
     if (!mounted) return;
     setState(() {
       _selectedVideo = File(picked.path);
       _controller = controller;
-      _trimStartMs = 0;
-      _trimEndMs = totalMs > 0 ? totalMs : 1000;
     });
   }
 
@@ -153,12 +157,12 @@ class _HomeScreenState extends State<HomeScreen> {
     await _controller?.setVolume(nextMute ? 0.0 : 1.0);
   }
 
-  void _cycleSpeed() async {
-    final speeds = [0.5, 1.0, 1.25, 1.5, 2.0];
-    final currentIndex = speeds.indexOf(_playbackSpeed);
-    final nextSpeed = speeds[(currentIndex + 1) % speeds.length];
-    setState(() => _playbackSpeed = nextSpeed);
-    await _controller?.setPlaybackSpeed(nextSpeed);
+  void _selectMainTab(String tab) {
+    final subs = _tabSubTools[tab] ?? ['Effect'];
+    setState(() {
+      _mainTab = tab;
+      _subTool = subs.first;
+    });
   }
 
   void _openMoreRatiosSheet() {
@@ -216,90 +220,28 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  String _formatMs(double ms) {
-    final d = Duration(milliseconds: ms.round().clamp(0, 86400000));
-    final minutes = d.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final seconds = d.inSeconds.remainder(60).toString().padLeft(2, '0');
-    return '$minutes:$seconds';
-  }
+  Widget _applyColorAndAdjust(Widget child) {
+    final base = _filters[_selectedFilterIndex].matrix ??
+        const [
+          1, 0, 0, 0, 0,
+          0, 1, 0, 0, 0,
+          0, 0, 1, 0, 0,
+          0, 0, 0, 1, 0,
+        ];
 
-  Widget _buildVideoWithFilter(Widget child) {
-    final matrix = _filters[_selectedFilterIndex].matrix;
-    if (matrix == null) return child;
+    final adjusted = List<double>.from(base);
+    adjusted[4] = adjusted[4] + _brightnessOffset;
+    adjusted[9] = adjusted[9] + _brightnessOffset;
+    adjusted[14] = adjusted[14] + _brightnessOffset;
+
     return ColorFiltered(
-      colorFilter: ColorFilter.matrix(matrix),
+      colorFilter: ColorFilter.matrix(adjusted),
       child: child,
     );
   }
 
-  Widget _buildSubToolPanel(bool hasVideo, double maxMs) {
-    if (_activeTool == 'Trim') {
-      final safeEnd = _trimEndMs.clamp(_trimStartMs + 100, maxMs);
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Start: ${_formatMs(_trimStartMs)}',
-                style: const TextStyle(color: Colors.white70, fontSize: 11),
-              ),
-              Text(
-                'End: ${_formatMs(safeEnd)}',
-                style: const TextStyle(color: Colors.amber, fontSize: 11),
-              ),
-            ],
-          ),
-          Slider(
-            value: _trimStartMs.clamp(0.0, (safeEnd - 100).clamp(0.0, maxMs)),
-            min: 0.0,
-            max: (safeEnd - 100).clamp(100.0, maxMs),
-            activeColor: Colors.amber,
-            inactiveColor: Colors.white24,
-            onChanged: hasVideo
-                ? (val) {
-                    setState(() => _trimStartMs = val);
-                    _controller!.seekTo(Duration(milliseconds: val.round()));
-                  }
-                : null,
-          ),
-          Slider(
-            value: safeEnd.clamp((_trimStartMs + 100).clamp(0.0, maxMs), maxMs),
-            min: (_trimStartMs + 100).clamp(0.0, maxMs),
-            max: maxMs.clamp(100.0, double.infinity),
-            activeColor: Colors.greenAccent,
-            inactiveColor: Colors.white24,
-            onChanged: hasVideo
-                ? (val) {
-                    setState(() => _trimEndMs = val);
-                  }
-                : null,
-          ),
-        ],
-      );
-    }
-
-    if (_activeTool == 'SafeZone') {
-      return Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          const Expanded(
-            child: Text(
-              'Reels / Shorts Safe-Zone Guide (text cut hone se bachaye)',
-              style: TextStyle(color: Colors.white70, fontSize: 12),
-            ),
-          ),
-          Switch(
-            value: _showSafeZone,
-            activeColor: Colors.amber,
-            onChanged: (val) => setState(() => _showSafeZone = val),
-          ),
-        ],
-      );
-    }
-
-    if (_activeTool == 'Filter') {
+  Widget _buildSubToolControls() {
+    if (_subTool == 'Filter') {
       return SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
@@ -319,26 +261,165 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
+    if (_subTool == 'Adjust') {
+      return Row(
+        children: [
+          const Text(
+            'Light',
+            style: TextStyle(color: Colors.white70, fontSize: 12),
+          ),
+          Expanded(
+            child: Slider(
+              value: _brightnessOffset,
+              min: -35,
+              max: 35,
+              activeColor: Colors.amber,
+              inactiveColor: Colors.white24,
+              onChanged: (val) => setState(() => _brightnessOffset = val),
+            ),
+          ),
+          Text(
+            _brightnessOffset.round().toString(),
+            style: const TextStyle(color: Colors.amber, fontSize: 12),
+          ),
+        ],
+      );
+    }
+
+    if (_subTool == 'Text' || _subTool == 'Caption') {
+      return Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _textInputController,
+              style: const TextStyle(color: Colors.white, fontSize: 13),
+              decoration: InputDecoration(
+                isDense: true,
+                hintText: _subTool == 'Caption'
+                    ? 'Reel caption likhein...'
+                    : 'Text overlay likhein...',
+                hintStyle: const TextStyle(color: Colors.white38),
+                filled: true,
+                fillColor: const Color(0xFF0E1015),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+              onChanged: (_) => setState(() => _showOverlayText = true),
+            ),
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            onPressed: () => setState(() => _showOverlayText = !_showOverlayText),
+            icon: Icon(
+              _showOverlayText ? Icons.visibility : Icons.visibility_off,
+              color: Colors.amber,
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (_subTool == 'Sticker') {
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Text(
+            'Creator Sticker Tag',
+            style: TextStyle(color: Colors.white70, fontSize: 12),
+          ),
+          Switch(
+            value: _showStickerBadge,
+            activeColor: Colors.amber,
+            onChanged: (v) => setState(() => _showStickerBadge = v),
+          ),
+        ],
+      );
+    }
+
+    if (_subTool == 'Detail') {
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Expanded(
+            child: Text(
+              '9:16 Safe-Zone Guide (text/sticker cut na ho)',
+              style: TextStyle(color: Colors.white70, fontSize: 12),
+            ),
+          ),
+          Switch(
+            value: _showSafeZone,
+            activeColor: Colors.amber,
+            onChanged: (v) => setState(() => _showSafeZone = v),
+          ),
+        ],
+      );
+    }
+
+    if (_subTool == 'Doodle') {
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Text(
+            'Highlight / Doodle Marker',
+            style: TextStyle(color: Colors.white70, fontSize: 12),
+          ),
+          Switch(
+            value: _showDoodleBadge,
+            activeColor: Colors.amber,
+            onChanged: (v) => setState(() => _showDoodleBadge = v),
+          ),
+        ],
+      );
+    }
+
+    if (_subTool == 'Record') {
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            _recordMarked ? 'Voiceover marker set' : 'Voiceover note ready',
+            style: const TextStyle(color: Colors.white70, fontSize: 12),
+          ),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _recordMarked ? Colors.greenAccent : Colors.amber,
+              foregroundColor: Colors.black,
+            ),
+            onPressed: () => setState(() => _recordMarked = !_recordMarked),
+            icon: const Icon(Icons.mic, size: 16),
+            label: Text(_recordMarked ? 'Marked' : 'Mark VO'),
+          ),
+        ],
+      );
+    }
+
+    if (_subTool == 'AI Speech' || _subTool == 'AI Effect') {
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            '$_subTool — Agle phase mein clean add hoga (no AI bloat now)',
+            style: const TextStyle(color: Colors.white60, fontSize: 12),
+          ),
+          const Icon(Icons.bolt, color: Colors.amber, size: 18),
+        ],
+      );
+    }
+
+    // Audio -> Effect / Mute
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
-          'Speed: ${_playbackSpeed}x  •  Audio: ${_isMuted ? 'Muted' : 'On'}',
+          'Audio ${_isMuted ? 'Muted' : 'Active'}',
           style: const TextStyle(color: Colors.white70, fontSize: 12),
         ),
-        Row(
-          children: [
-            OutlinedButton(
-              onPressed: _cycleSpeed,
-              child: Text('${_playbackSpeed}x'),
-            ),
-            const SizedBox(width: 8),
-            OutlinedButton.icon(
-              onPressed: _toggleMute,
-              icon: Icon(_isMuted ? Icons.volume_off : Icons.volume_up, size: 16),
-              label: Text(_isMuted ? 'Unmute' : 'Mute'),
-            ),
-          ],
+        OutlinedButton.icon(
+          onPressed: _toggleMute,
+          icon: Icon(_isMuted ? Icons.volume_off : Icons.volume_up, size: 16),
+          label: Text(_isMuted ? 'Unmute' : 'Mute'),
         ),
       ],
     );
@@ -346,6 +427,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    _textInputController.dispose();
     _controller?.dispose();
     super.dispose();
   }
@@ -358,17 +440,12 @@ class _HomeScreenState extends State<HomeScreen> {
         ? _selectedRatio.ratio
         : (hasVideo ? _controller!.value.aspectRatio : _selectedRatio.ratio);
 
-    final duration = hasVideo ? _controller!.value.duration : Duration.zero;
-    final position = hasVideo ? _controller!.value.position : Duration.zero;
-    final maxMs = duration.inMilliseconds > 0 ? duration.inMilliseconds.toDouble() : 1000.0;
-    final posMs = position.inMilliseconds.clamp(0, maxMs.round()).toDouble();
-
-    final tools = [
-      ('Trim', Icons.content_cut),
-      ('SafeZone', Icons.grid_on),
-      ('Filter', Icons.auto_awesome),
-      ('Speed', Icons.speed),
-      ('Mute', _isMuted ? Icons.volume_off : Icons.volume_up),
+    final subTools = _tabSubTools[_mainTab] ?? const ['Effect'];
+    final mainTabs = [
+      ('Audio', Icons.music_note),
+      ('Sticker', Icons.emoji_emotions_outlined),
+      ('Text', Icons.text_fields),
+      ('Effect', Icons.auto_awesome),
     ];
 
     return Scaffold(
@@ -493,7 +570,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               child: Stack(
                                 fit: StackFit.expand,
                                 children: [
-                                  _buildVideoWithFilter(
+                                  _applyColorAndAdjust(
                                     FittedBox(
                                       fit: _fitMode ? BoxFit.contain : BoxFit.cover,
                                       child: SizedBox(
@@ -532,7 +609,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: Text(
-                                        '${_fitMode ? 'Fit ${_selectedRatio.shortTag}' : 'Original'} • ${_playbackSpeed}x',
+                                        '${_fitMode ? 'Fit ${_selectedRatio.shortTag}' : 'Original'} • ${_filters[_selectedFilterIndex].name}',
                                         style: const TextStyle(
                                           color: Colors.white,
                                           fontSize: 11,
@@ -540,6 +617,79 @@ class _HomeScreenState extends State<HomeScreen> {
                                       ),
                                     ),
                                   ),
+                                  if (_showStickerBadge || _showDoodleBadge)
+                                    Positioned(
+                                      top: 8,
+                                      right: 8,
+                                      child: Row(
+                                        children: [
+                                          if (_showStickerBadge)
+                                            Container(
+                                              margin: const EdgeInsets.only(left: 4),
+                                              padding: const EdgeInsets.symmetric(
+                                                horizontal: 7,
+                                                vertical: 3,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: Colors.amber,
+                                                borderRadius: BorderRadius.circular(8),
+                                              ),
+                                              child: const Text(
+                                                'ZAP',
+                                                style: TextStyle(
+                                                  color: Colors.black,
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ),
+                                          if (_showDoodleBadge)
+                                            Container(
+                                              margin: const EdgeInsets.only(left: 4),
+                                              padding: const EdgeInsets.symmetric(
+                                                horizontal: 7,
+                                                vertical: 3,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: Colors.greenAccent,
+                                                borderRadius: BorderRadius.circular(8),
+                                              ),
+                                              child: const Text(
+                                                'MARK',
+                                                style: TextStyle(
+                                                  color: Colors.black,
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                  if (_showOverlayText &&
+                                      _textInputController.text.trim().isNotEmpty)
+                                    Align(
+                                      alignment: Alignment.bottomCenter,
+                                      child: Container(
+                                        margin: const EdgeInsets.only(bottom: 58),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 5,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.black65,
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Text(
+                                          _textInputController.text.trim(),
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
                                   Center(
                                     child: IconButton(
                                       iconSize: 52,
@@ -596,56 +746,42 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             const SizedBox(height: 8),
-            // Playback Timeline Bar
+            // Sub-tools row when a main tab is tapped
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-              decoration: BoxDecoration(
-                color: const Color(0xFF171A22),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white10),
-              ),
-              child: Row(
-                children: [
-                  Text(
-                    _formatMs(posMs),
-                    style: const TextStyle(color: Colors.white70, fontSize: 11),
-                  ),
-                  Expanded(
-                    child: Slider(
-                      value: posMs.clamp(0.0, maxMs),
-                      min: 0.0,
-                      max: maxMs,
-                      activeColor: Colors.amber,
-                      inactiveColor: Colors.white24,
-                      onChanged: hasVideo
-                          ? (val) {
-                              _controller!.seekTo(Duration(milliseconds: val.round()));
-                            }
-                          : null,
-                    ),
-                  ),
-                  Text(
-                    _formatMs(maxMs),
-                    style: const TextStyle(color: Colors.white70, fontSize: 11),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
-            // Active Tool Controls Box
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
                 color: const Color(0xFF171A22),
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: Colors.white10),
               ),
-              child: _buildSubToolPanel(hasVideo, maxMs),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: subTools.map((item) {
+                        final selected = _subTool == item;
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ChoiceChip(
+                            label: Text(item),
+                            selected: selected,
+                            onSelected: (_) => setState(() => _subTool = item),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  _buildSubToolControls(),
+                ],
+              ),
             ),
             const SizedBox(height: 8),
-            // Bottom Tool Icons Bar (No "Canvas" here)
+            // Main Bottom Tabs: Audio, Sticker, Text, Effect
             Container(
-              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 6),
               decoration: BoxDecoration(
                 color: const Color(0xFF14171F),
                 borderRadius: BorderRadius.circular(16),
@@ -653,20 +789,15 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: tools.map((t) {
+                children: mainTabs.map((t) {
                   final label = t.$1;
                   final icon = t.$2;
-                  final isSelected = _activeTool == label;
+                  final isSelected = _mainTab == label;
                   return InkWell(
                     borderRadius: BorderRadius.circular(10),
-                    onTap: () {
-                      if (label == 'Mute') {
-                        _toggleMute();
-                      }
-                      setState(() => _activeTool = label);
-                    },
+                    onTap: () => _selectMainTab(label),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
